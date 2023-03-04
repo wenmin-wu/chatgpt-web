@@ -123,6 +123,7 @@
 
 
         $(document).ready(function () {
+            const defaultGenerateText = "Regenerate response";
             // var chatWindow = $("#outerChatWindow");
             $("#questionForm").on("keydown", function (event) {
                 if (event.keyCode === 13) {
@@ -140,6 +141,7 @@
                 event.preventDefault();
                 $("#questionForm").val("");
                 // call server
+                $("#regenerateDiv").text("Generating...")
                 $.get(
                     "/chat/get?msg=" + text,
                     function (message) {
@@ -149,6 +151,7 @@
                             scrollTop: $("#chatWindow").prop("scrollHeight")
                         }, 500);
                         hightCode();
+                        $("#regenerateDiv").text(defaultGenerateText)
                     }
                 );
             });
@@ -195,7 +198,8 @@
                             <div class="relative flex h-full flex-1 md:flex-col">
                                 <div class="flex ml-1 mt-1.5 md:w-full md:m-auto md:mb-2 gap-0 md:gap-2 justify-center">
                                     <button class="btn relative btn-neutral border-0 md:border">
-                                        <div class="flex items-center justify-center gap-2"><svg stroke="currentColor"
+                                        <div class="flex items-center justify-center gap-2" id="regenerateDiv">
+                                            <svg stroke="currentColor"
                                                 fill="none" stroke-width="1.5" viewBox="0 0 24 24"
                                                 stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"
                                                 height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
