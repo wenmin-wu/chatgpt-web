@@ -10,6 +10,7 @@ ChatGPT Web
 * Render markdown using JS lib
 * Save chat history to `sessionStorage` to prevent loss after refreshing
 * Fix some browser compatibility issue by rewriting some functions in highlightjs-badge.js with jQuery
+* Shift + Enter (⇧+⏎) to newline in the chatbox
 
 ## Usage
 

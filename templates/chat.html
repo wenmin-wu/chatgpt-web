@@ -10,7 +10,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <script>
-        function highlightCode(pageRefreshed=false) {
+        function highlightCode(pageRefreshed = false) {
             if (!pageRefreshed) {
                 var blocks = $('pre code');
                 if (blocks.length > 0) {
@@ -131,7 +131,7 @@
                 highlightCode(true);
             }
             $("#questionForm").on("keydown", function (event) {
-                if (event.keyCode === 13) {
+                if (event.keyCode === 13 && !event.shiftKey) {
                     event.preventDefault();
                     $("#submitBtn").click();
                 }
@@ -167,6 +167,10 @@
                 );
             });
         });
+        function autoGrow(element) {
+            element.style.height = "24px";
+            element.style.height = (element.scrollHeight)+"px";
+        }
     </script>
 
 </head>
@@ -204,7 +208,7 @@
                     </div>
                     <div
                         class="absolute bottom-0 left-0 w-full border-t md:border-t-0 dark:border-white/20 md:border-transparent md:dark:border-transparent md:bg-vert-light-gradient bg-white dark:bg-gray-800 md:!bg-transparent dark:md:bg-vert-dark-gradient">
-                        <form
+                        <div
                             class="stretch mx-2 flex flex-row gap-3 pt-2 last:mb-2 md:last:mb-6 lg:mx-auto lg:max-w-3xl lg:pt-6">
                             <div class="relative flex h-full flex-1 md:flex-col">
                                 <div class="flex ml-1 mt-1.5 md:w-full md:m-auto md:mb-2 gap-0 md:gap-2 justify-center">
@@ -225,9 +229,7 @@
                                 </div>
                                 <div
                                     class="flex flex-col w-full py-2 flex-grow md:py-3 md:pl-4 relative border border-black/10 bg-white dark:border-gray-900/50 dark:text-white dark:bg-gray-700 rounded-md shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:shadow-[0_0_15px_rgba(0,0,0,0.10)]">
-                                    <textarea tabindex="0" data-id="" rows="1" id="questionForm"
-                                        class="m-0 w-full resize-none border-0 bg-transparent p-0 pl-2 pr-7 focus:ring-0 focus-visible:ring-0 dark:bg-transparent md:pl-0"
-                                        style="max-height: 200px; height: 24px; overflow-y: hidden;"></textarea>
+                                    <textarea oninput="autoGrow(this)" tabindex="0" data-id="" id="questionForm" class="m-0 w-full resize-none border-0 bg-transparent p-0 pl-2 pr-7 focus:ring-0 focus-visible:ring-0 dark:bg-transparent md:pl-0" style="overflow-y: auto; height: 24px; word-wrap: break-word;"></textarea>
                                     <button id="submitBtn"
                                         class="absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent">
                                         <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
@@ -239,7 +241,7 @@
                                     </button>
                                 </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </main>
             </div>
