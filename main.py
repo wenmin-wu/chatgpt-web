@@ -1,11 +1,10 @@
-import markdown2
 import openai
 
-from flask import Flask, request, render_template, redirect
+from flask import Flask, request, render_template
 
 server = Flask(__name__, static_url_path="/static")
 
-N = 20
+N = 10
 
 class Conversation:
     def __init__(self, prompt, num_of_round):
@@ -39,7 +38,7 @@ class Conversation:
 
         
 
-converstation = Conversation(prompt="You are a helpful assistant.", num_of_round=10)
+converstation = Conversation(prompt="You are a helpful assistant.", num_of_round=N)
 
 @server.route("/chat")
 def home():
@@ -49,9 +48,8 @@ def home():
 @server.route("/chat/get")
 def get_bot_response():
     user_text = request.args.get("msg")
-    return markdown2.markdown(
-        str(converstation.ask(user_text)), extras=["fenced-code-blocks"]
-    )
+    return str(converstation.ask(user_text))
+    
 
 
 if __name__ == "__main__":

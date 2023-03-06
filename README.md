@@ -1,7 +1,14 @@
 # A ChatGPT Web App Based On OpenAI API
 ChatGPT Web
 
+
 ![chat-screenshot](images/gpt-web-screenshot.png)
+
+## Updates
+### 2023-03-06
+
+* Render markdown using JS lib
+* Save chat history to `sessionStorage` to prevent loss after refreshing
 
 ## Usage
 

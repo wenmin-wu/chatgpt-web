@@ -2,4 +2,3 @@ openai
 flask
 gunicorn
 gevent
-markdown2
