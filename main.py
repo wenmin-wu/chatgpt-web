@@ -1,3 +1,4 @@
+import io
 import openai
 
 from flask import Flask, request, render_template
@@ -49,8 +50,15 @@ def home():
 def get_bot_response():
     user_text = request.args.get("msg")
     return str(converstation.ask(user_text))
-    
 
+    
+@server.route("/chat/upload", methods=["POST"])
+def upload():
+    audio = request.files['audio']
+    audio.save("tmp.wav")
+    with open("tmp.wav", "rb") as f:
+        text = openai.Audio.transcribe("whisper-1", f)["text"]
+    return {"text": text}
 
 if __name__ == "__main__":
     server.run(debug=False, host="0.0.0.0", port=8088)
