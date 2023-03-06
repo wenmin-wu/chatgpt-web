@@ -125,7 +125,11 @@
                 contentType: false,
                 success: function (response) {
                     $("#regenerateDiv").text(defaultGenerateText)
-                    $("#questionForm").val($("#questionForm").val() + response["text"]);
+                    var prevVal = $("#questionForm").val().trim();
+                    if (prevVal) {
+                        prevVal += " ";
+                    }
+                    $("#questionForm").val(prevVal + response["text"]);
                 },
                 error: function (error) {
                     console.error(error);
