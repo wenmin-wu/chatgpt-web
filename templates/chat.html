@@ -6,15 +6,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
     <script src="/static/js/highlightjs-badge.js"></script>
+    <script src="/static/js/recorder.js"></script>
     <script type="text/javascript" src="https://unpkg.com/showdown/dist/showdown.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.14.0/css/all.css" integrity="sha384-HzLeBuhoNPvSl5KYnjx0BT+WB0QEEqLprO+NBkkk5gbc67FTaL7XIGa2w1L0Xbgc" crossorigin="anonymous">
+    <link rel="shortcut icon" href="/static/img/chatgpt.ico" type="image/x-icon">
+    <link rel="icon" href="/static/img/chatgpt.ico" type="image/x-icon">
     <script>
-        function highlightCode(pageRefreshed = false) {
+        function highlightCode(pageRefreshed = false, nBlock=1) {
             if (!pageRefreshed) {
                 var blocks = $('pre code');
-                if (blocks.length > 0) {
-                    hljs.highlightBlock(blocks[blocks.length - 1]);
+                var len = blocks.length;
+                for (var i = len - nBlock; i < len; i++) {
+                    hljs.highlightBlock(blocks[i]);
                 }
             }
             var options = {
@@ -42,7 +47,92 @@
     <meta name="react-scroll-to-bottom:version" content="4.2.0">
     <style data-emotion="react-scroll-to-bottom--css-yrgtu" data-s=""></style>
     <script>
+        var gumStream; 						//stream from getUserMedia()
+        var rec; 							//Recorder.js object
+        var input; 							//MediaStreamAudioSourceNode we'll be recording
+        // shim for AudioContext when it's not avb. 
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        var audioContext //audio context to help us record
+
         var userChatBegin = "";
+        const defaultGenerateText = "Regenerate response";
+
+        function startRecording() {
+            // Start the voice recording
+            console.log('Starting voice recording...');
+            var constraints = { audio: true, video: false }
+            navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+                console.log("getUserMedia() success, stream created, initializing Recorder.js ...");
+                /*
+                    create an audio context after getUserMedia is called
+                    sampleRate might change after getUserMedia is called, like it does on macOS when recording through AirPods
+                    the sampleRate defaults to the one set in your OS for your playback device
+        
+                */
+                audioContext = new AudioContext();
+
+                /*  assign to gumStream for later use  */
+                gumStream = stream;
+
+                /* use the stream */
+                input = audioContext.createMediaStreamSource(stream);
+
+                /* 
+                    Create the Recorder object and configure to record mono sound (1 channel)
+                    Recording 2 channels  will double the file size
+                */
+                rec = new Recorder(input, { numChannels: 1 })
+
+                //start the recording process
+                rec.record()
+
+                console.log("Recording started");
+
+            }).catch(function (err) {
+                //enable the record button if getUserMedia() fails
+                console.log("getUserMedia() error: " + err);
+            });
+        }
+
+        function cancelRecording() {
+            console.log("Cancelling voice recording...");
+            rec.stop();
+            gumStream.getAudioTracks()[0].stop();
+        }
+
+        function stopRecording() {
+            // Stop the voice recording
+            //tell the recorder to stop the recording
+            rec.stop();
+            //stop microphone access
+            gumStream.getAudioTracks()[0].stop();
+            //create the wav blob and pass it on to createDownloadLink
+            console.log("coverting voice to text...");
+            rec.exportWAV(sendWAV);
+        }
+
+        function sendWAV(blob) {
+            // Create a FormData object
+            var formData = new FormData();
+            formData.append('audio', blob, 'recorded_audio.wav');
+            console.log("Sending audio...")
+            // Send the FormData to the Tornado server
+            $.ajax({
+                url: "/chat/upload",
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    $("#regenerateDiv").text(defaultGenerateText)
+                    $("#questionForm").val($("#questionForm").val() + response["text"]);
+                },
+                error: function (error) {
+                    console.error(error);
+                }
+            });
+        }
+
         userChatBegin += '<div class="w-full border-b border-black/10 dark:border-gray-900/50 text-gray-800 dark:text-gray-100 group dark:bg-gray-800">';
         userChatBegin += '<div class="text-base gap-4 md:gap-6 m-auto md:max-w-2xl lg:max-w-2xl xl:max-w-3xl p-4 md:py-6 flex lg:px-0">';
         userChatBegin += '<div class="w-[30px] flex flex-col relative items-end">';
@@ -106,10 +196,12 @@
             // Remove needless newlines from message
             var res = ""
             var inCodeBlock = false
+            var nBlock = 0;
             message.split("\n").forEach(function (line) {
                 if (line.startsWith("<pre><code")) {
                     res += codeBlockDiv;
                     inCodeBlock = true;
+                    nBlock += 1;
                 } else if (line.startsWith("</code></pre>")) {
                     res += "</div>";
                     inCodeBlock = false;
@@ -120,11 +212,49 @@
                 }
             });
             res = res.replace(/\n+$/, '');
-            return res;
+            return [res, nBlock];
         }
 
+
         $(document).ready(function () {
-            const defaultGenerateText = "Regenerate response";
+            //$("#chatWindow").css({
+            //    height: ($(window).height() * 0.8) + "px"
+            //});
+            $('#regenerateBtn').prop('disabled', true);
+            $("#cancelBtn").hide();
+            $("#toTextBtn").hide();
+            $('#speakBtn').click(function() {
+                $(this).hide();
+                $('#cancelBtn').show();
+                $('#toTextBtn').show();
+                // call server
+                $("#regenerateDiv").text("Speaking...")
+                startRecording();
+            });
+
+            $('#regenerateBtn').click(function() {
+                $('#regenerateDiv').text("Not Implmented");
+                setTimeout(function() {
+                    $('#regenerateDiv').text(defaultGenerateText);
+                }, 2000);
+            });
+
+            $('#toTextBtn').click(function() {
+                $(this).hide();
+                $('#speakBtn').show();
+                $('#cancelBtn').hide();
+                $("#regenerateDiv").text("Converting...")
+                stopRecording();
+            });
+
+            $('#cancelBtn').click(function() {
+                cancelRecording();
+                $(this).hide();
+                $('#speakBtn').show();
+                $('#toTextBtn').hide();
+                $("#regenerateDiv").text(defaultGenerateText)
+            });
+
             var chatWindowContent = sessionStorage.getItem("chatWindowContent");
             if (chatWindowContent) {
                 $("#chatWindow").html(chatWindowContent);
@@ -153,25 +283,35 @@
                     "/chat/get?msg=" + text,
                     function (message) {
                         var converter = new showdown.Converter();
-                        var messageHtml = removeNewlines(converter.makeHtml(message));
+                        var messageHtml = converter.makeHtml(message);
+                        let [cvtedMsgHtml, nBlock] = removeNewlines(messageHtml);
                         $("#chatWindow").append(
-                            gptChatBegin + messageHtml + gptChatEnd
+                            gptChatBegin + cvtedMsgHtml + gptChatEnd
                         ).animate({
                             scrollTop: $("#chatWindow").prop("scrollHeight")
                         }, 500);
-                        highlightCode();
+                        highlightCode(false, nBlock);
                         $("#regenerateDiv").text(defaultGenerateText)
                         var chatWindow = $("#chatWindow").html();
                         sessionStorage.setItem("chatWindowContent", chatWindow);
+                        console.log("ChatWindow ScrollHeight:", $("#chatWindow")[0].scrollHeight);
+                        $("#chatWindow").animate({scrollTop: $("#chatWindow")[0].scrollHeight});
                     }
                 );
             });
         });
         function autoGrow(element) {
             element.style.height = "24px";
-            element.style.height = (element.scrollHeight)+"px";
+            element.style.height = (element.scrollHeight) + "px";
         }
     </script>
+
+    <style>
+        .disabled-a {
+          pointer-events: none;
+          cursor: default;
+        }
+      </style>
 
 </head>
 
@@ -212,8 +352,8 @@
                             class="stretch mx-2 flex flex-row gap-3 pt-2 last:mb-2 md:last:mb-6 lg:mx-auto lg:max-w-3xl lg:pt-6">
                             <div class="relative flex h-full flex-1 md:flex-col">
                                 <div class="flex ml-1 mt-1.5 md:w-full md:m-auto md:mb-2 gap-0 md:gap-2 justify-center">
-                                    <button class="btn relative btn-neutral border-0 md:border">
-                                        <div class="flex items-center justify-center gap-2" id="regenerateDiv">
+                                    <button class="btn relative btn-neutral border-0 md:border" id="regenerateBtn">
+                                        <div class="flex items-center justify-center gap-2">
                                             <svg stroke="currentColor" fill="none" stroke-width="1.5"
                                                 viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"
                                                 class="h-3 w-3" height="1em" width="1em"
@@ -223,13 +363,24 @@
                                                 <path
                                                     d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15">
                                                 </path>
-                                            </svg>Regenerate response
+                                            </svg><div id="regenerateDiv">Regenerate response</div>
                                         </div>
+                                    </button>
+                                    <button class="btn relative btn-neutral border-0 md:border" id="speakBtn">
+                                        <div class="flex items-end justify-end gap-2"><i class="fas fa-microphone"></i>Speak</div>
+                                    </button>
+                                    <button class="btn relative btn-neutral border-0 md:border" id="cancelBtn">
+                                        <div class="flex items-end justify-end gap-2"><i class="fas fa-times"></i>Cancel</div>
+                                    </button>
+                                    <button class="btn relative btn-neutral border-0 md:border" id="toTextBtn">
+                                        <div class="flex items-end justify-end gap-2"><i class="fas fa-font"></i>ToText</div>
                                     </button>
                                 </div>
                                 <div
                                     class="flex flex-col w-full py-2 flex-grow md:py-3 md:pl-4 relative border border-black/10 bg-white dark:border-gray-900/50 dark:text-white dark:bg-gray-700 rounded-md shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:shadow-[0_0_15px_rgba(0,0,0,0.10)]">
-                                    <textarea oninput="autoGrow(this)" tabindex="0" data-id="" id="questionForm" class="m-0 w-full resize-none border-0 bg-transparent p-0 pl-2 pr-7 focus:ring-0 focus-visible:ring-0 dark:bg-transparent md:pl-0" style="overflow-y: auto; height: 24px; word-wrap: break-word;"></textarea>
+                                    <textarea oninput="autoGrow(this)" tabindex="0" data-id="" id="questionForm"
+                                        class="m-0 w-full resize-none border-0 bg-transparent p-0 pl-2 pr-7 focus:ring-0 focus-visible:ring-0 dark:bg-transparent md:pl-0"
+                                        style="overflow-y: auto; height: 24px; word-wrap: break-word;"></textarea>
                                     <button id="submitBtn"
                                         class="absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent">
                                         <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
@@ -249,7 +400,7 @@
                 <div class="flex h-full min-h-0 flex-col ">
                     <div class="scrollbar-trigger flex h-full w-full flex-1 items-start border-white/20">
                         <nav class="flex h-full flex-1 flex-col space-y-1 p-2"><a
-                                class="flex py-3 px-3 items-center gap-3 rounded-md hover:bg-gray-500/10 transition-colors duration-200 text-white cursor-pointer text-sm mb-2 flex-shrink-0 border border-white/20"><svg
+                                class="disabled-a flex py-3 px-3 items-center gap-3 rounded-md hover:bg-gray-500/10 transition-colors duration-200 text-white cursor-pointer text-sm mb-2 flex-shrink-0 border border-white/20"><svg
                                     stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
                                     stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" height="1em"
                                     width="1em" xmlns="http://www.w3.org/2000/svg">
@@ -259,7 +410,7 @@
                             <div class="flex-col flex-1 overflow-y-auto border-b border-white/20">
                                 <div class="flex flex-col gap-2 text-gray-100 text-sm">
                                     <a
-                                        class="flex py-3 px-3 items-center gap-3 relative rounded-md cursor-pointer break-all pr-14 bg-gray-800 hover:bg-gray-800 group animate-flash"><svg
+                                        class="disabled-a flex py-3 px-3 items-center gap-3 relative rounded-md cursor-pointer break-all pr-14 bg-gray-800 hover:bg-gray-800 group animate-flash"><svg
                                             stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
                                             stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" height="1em"
                                             width="1em" xmlns="http://www.w3.org/2000/svg">
@@ -268,7 +419,7 @@
                                         </svg>
                                         <div class="flex-1 text-ellipsis max-h-5 overflow-hidden break-all relative">
                                             Default</div>
-                                        <div class="absolute flex right-1 z-10 text-gray-300 visible"><button
+                                        <div class="absolute flex right-1 z-10 text-gray-300 visible"><button disabled
                                                 class="p-1 hover:text-white"><svg stroke="currentColor" fill="none"
                                                     stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round"
                                                     stroke-linejoin="round" class="h-4 w-4" height="1em" width="1em"
@@ -276,7 +427,7 @@
                                                     <path d="M12 20h9"></path>
                                                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z">
                                                     </path>
-                                                </svg></button><button class="p-1 hover:text-white"><svg
+                                                </svg></button><button disabled class="p-1 hover:text-white"><svg
                                                     stroke="currentColor" fill="none" stroke-width="2"
                                                     viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"
                                                     class="h-4 w-4" height="1em" width="1em"
@@ -292,7 +443,7 @@
                                 </div>
                             </div>
                             <a
-                                class="flex py-3 px-3 items-center gap-3 rounded-md hover:bg-gray-500/10 transition-colors duration-200 text-white cursor-pointer text-sm"><svg
+                                class="disabled-a flex py-3 px-3 items-center gap-3 rounded-md hover:bg-gray-500/10 transition-colors duration-200 text-white cursor-pointer text-sm"><svg
                                     stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24"
                                     stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" height="1em"
                                     width="1em" xmlns="http://www.w3.org/2000/svg">
