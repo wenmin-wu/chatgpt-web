@@ -5,15 +5,18 @@
     <link rel="stylesheet" href="https://cdn.tailwindcss.com" data-n-g="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
-    <script src="/static/js/highlightjs-badge.min.js"></script>
+    <script src="/static/js/highlightjs-badge.js"></script>
     <script type="text/javascript" src="https://unpkg.com/showdown/dist/showdown.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <script>
-        function highlightCode() {
-            $('pre code').each(function (i, block) {
-                hljs.highlightBlock(block);
-            });
+        function highlightCode(pageRefreshed=false) {
+            if (!pageRefreshed) {
+                var blocks = $('pre code');
+                if (blocks.length > 0) {
+                    hljs.highlightBlock(blocks[blocks.length - 1]);
+                }
+            }
             var options = {
                 contentSelector: "#chatWindow",
                 // Delay in ms used for `setTimeout` before badging is applied
@@ -30,7 +33,7 @@
                 // hook to allow modifying the text before it's pasted
                 onBeforeTextCopied: function (text, codeElement) {
                     return text;   //  you can fix up the text here
-                }
+                },
             };
             window.highlightJsBadge(options);
         }
@@ -124,9 +127,8 @@
             const defaultGenerateText = "Regenerate response";
             var chatWindowContent = sessionStorage.getItem("chatWindowContent");
             if (chatWindowContent) {
-                console.log(chatWindowContent);
                 $("#chatWindow").html(chatWindowContent);
-                highlightCode();
+                highlightCode(true);
             }
             $("#questionForm").on("keydown", function (event) {
                 if (event.keyCode === 13) {
